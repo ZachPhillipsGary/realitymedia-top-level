@@ -9,12 +9,10 @@ const setup_db = (ddl_path = process.env.DDL_PATH) => {
             process.exit(1);
         }
         const migrations = filenames.filter(f => f.includes(".sql")).map((filename) => {
-            const sql = fs.readFileSync(dirname + filename, "utf-8");
+            const sql = fs.readFileSync(ddl_path + filename, "utf-8");
             return sql
         });
-        DB.migrations(migrations);
+        DB.createTables(migrations);
     });
 }
-module.exports = {
-    setup_db
-}
+setup_db()
