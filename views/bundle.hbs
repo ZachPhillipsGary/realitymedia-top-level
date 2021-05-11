@@ -1,73 +1,69 @@
+if (!window.pending_messages) {
+    window.pending_messages = [];
+}
+
+window.onbeforeunload = confirmExit;
+
+function confirmExit() {
+    return confirm("You have attempted to leave this page. Are you sure?");
+}
+
+
+
 window.addEventListener('load', (event) => {
-    // keeps this script from being loaded more than once
-    if (window.bundleDeployed && window.bundleDeployed === 1) {
-        return
-    }
-    window.bundleDeployed = 1;
-    const SSO_URL = `{{COGNITO_BASE_URL}}&redirect_uri={{REDIRECT_URL}}/signin`
-
-    // inject Google SSO metadata for Google client script
-    const createGoogleLink = () => {
-        const googleMetaName = "google-signin-client_id";
-        const exists = document.querySelector(`input[name="${googleMetaName}"]`);
-        if (exists) {
-            return exists
+    const isReady = () => {
+        console.log("ready")
+        window.is_frame_ready = true;
+        if (window.pending_messages && window.pending_messages.length) {
+            window.pending_messages.forEach(msg =>
+                window.sso_iframe.contentWindow.postMessage(msg)
+            )
         }
-        const googleMeta = document.createElement('meta');
-        googleMeta.name = googleMetaName
-        googleMeta.content = "{{GOOGLE_SSO_ID}}"
-        console.log("{{GOOGLE_SSO_ID}}")
-        document.head.appendChild(googleMeta)
-        return googleMeta
     }
-    // Create a link to launch the SSO flow
-    const createSSOLink = () => {
-        const SSOLink = document.createElement('a');
-        SSOLink.href = SSO_URL
-        SSOLink.textContent = "Sign in with Google"
-        document.body.appendChild(SSOLink);
+    const iframeURL = "{{{PROTOCOL}}}{{{BASE_URL}}}/sso/";
+    window.sso_iframe = document.querySelector(`iframe[src='${iframeURL}']`);
+    window.is_frame_ready = false;
+    if (!window.sso_iframe) {
+        window.sso_iframe = document.createElement("iframe");
+        window.sso_iframe.setAttribute("src", iframeURL);
+        window.sso_iframe.style.width = "1px";
+        window.sso_iframe.style.height = "1px";
+        window.sso_iframe.onload = isReady
+        document.body.appendChild(window.sso_iframe);
     }
-    const init = () => {
+
+    window.APP.store.addEventListener("statechanged", ({
+        target
+    }) => {
+        if (!target.state) {
+            console.error("State invalid")
+            return
+        }
+        const {
+            credentials
+        } = target.state;
+
+        if (!credentials.email || !credentials.token) {
+            console.error("No credentials found")
+            return
+        }
+
         try {
-            window.initSSO()
-        } catch (error) {
-            console.log(error)
-            setTimeout(init, 100)
-        }
-    }
-    try {
-        window.SSOSocketURL = "{{PROTOCOL}}{{BASE_URL}}"
-        const scripts = ["{{PROTOCOL}}{{BASE_URL}}/socket.io/socket.io.js", "https://apis.google.com/js/platform.js",
-            "{{PROTOCOL}}{{BASE_URL}}/scripts.js"
-        ];
-
-        scripts.forEach(script => {
-            const scriptElm = document.createElement('script');
-            scriptElm.src = script;
-            document.body.appendChild(scriptElm);
-        });
-
-        // if we don't have token, attempt login
-        if (window.location.href.indexOf("access_token") == -1) {
-            const signin = confirm("Sign in?");
-            if (signin == true) {
-                window.location.href = SSO_URL
+            const msg = {
+                action: 'save',
+                key: 'credentials',
+                value: credentials
             }
-        } else if (Object.keys(window).includes("submitEmail")) {
-            try {
-                const googleId = createGoogleLink()
-                let waitTime = 0;
-                if (!Object.keys(window).includes("initSSO")) {
-                    waitTime = 300
-                }
-                setTimeout(init, waitTime)
-
-            } catch (error) {
-                console.error(error)
+            if (!window.is_frame_ready) {
+                window.pending_messages.push(msg)
+                console.log("added", msg)
+                return
             }
-
+            window.sso_iframe.contentWindow.postMessage(msg)
+            debugger;
+        } catch (e) {
+            alert(e.message);
+            console.error(e)
         }
-    } catch (error) {
-        console.log("Error", error)
-    }
+    });
 });

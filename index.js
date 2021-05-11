@@ -26,18 +26,21 @@ app.set("views", path.join(__dirname, "views"))
 let protocol = "http://"
 const allowedOrigins = env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(",") : []
 
+
 app.use(cors({
-  origin: (origin, callback) => {
-    // allow requests with no origin 
-    // (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not ' +
-        'allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  }
+  origin: 'https://localhost:8080',
+  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+  // origin: (origin, callback) => {
+  //   // allow requests with no origin 
+  //   // (like mobile apps or curl requests)
+  //   if (!origin) return callback(null, true);
+  //   if (allowedOrigins.indexOf(origin) === -1) {
+  //     const msg = 'The CORS policy for this site do∂ßes not ' +
+  //       'allow access from the specified Origin.';
+  //     return callback(new Error(msg), false);
+  //   }
+  //   return callback(null, true);
+  // }
 }));
 
 
@@ -52,32 +55,31 @@ app.get(
   }
 );
 
-/*
-Example: Manual injection of script for testing purposes :) 
-const scriptElm = document.createElement('script');
-scriptElm.src = "http://localhost:3000/sso/bundle.js";
-document.body.appendChild(scriptElm);
-*/
+app.get("/sso/", (req, res) => {
+  const {
+    ALLOWED_DOMAINS,
+  } = env;
+
+  // render the bundle scripts from SSO
+  res.render('sso.hbs', {
+    ALLOWED_DOMAINS
+  });
+});
 
 app.get("/sso/bundle.js", (req, res) => {
-  const {
-    GOOGLE_SSO_ID,
-    SSO_URL,
-    LOGIN_REDIRECT_URL,
-    COGNITO_BASE_URL
+  let {
+    TOP_LEVEL_BASE_URL,
   } = env;
-  if (!GOOGLE_SSO_ID || !SSO_URL) {
-    return res.status(500);
+
+  if (!TOP_LEVEL_BASE_URL) {
+    TOP_LEVEL_BASE_URL = req.headers.host
   }
+
   res.header('Content-Type', 'application/javascript');
   // render the bundle scripts from SSO
   res.render('bundle.hbs', {
-    SSO_URL,
-    GOOGLE_SSO_ID,
-    BASE_URL: req.headers.host, // domain
+    BASE_URL: TOP_LEVEL_BASE_URL,
     PROTOCOL: protocol,
-    REDIRECT_URL: LOGIN_REDIRECT_URL || "https://localhost:8080",
-    COGNITO_BASE_URL
   });
 });
 
@@ -152,13 +154,14 @@ const io = socketIO.listen(httpServer);
 
 io.sockets.on("connection", (socket) => {
   console.log("a user connected");
-  socket.on('sso_login_event', (event) => {
+  socket.on("ERROR", event => console.error(event));
+  socket.on("save", (event) => {
     console.log("sso login event detected")
     const {
       email
     } = event
     if (!email) {
-      socket.send("UserDataError", {
+      socket.send("ERROR", {
         message: "Email not found",
         event
       });

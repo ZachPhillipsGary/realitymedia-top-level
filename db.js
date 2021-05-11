@@ -42,7 +42,7 @@ class SimpleDB {
             this.db = new sqlite3.Database(DB_FILE || db_type);
 
         }
-        // finally, init our sqllite db if the file already exists or we are using memory
+        // finally, init our sqlite db if the file already exists or we are using memory
     }
     // check if path exists
     is_dir(path) {
