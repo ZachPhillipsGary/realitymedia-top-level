@@ -1,89 +1,56 @@
-window.onload = () => {
-  let socket;
-
-  if (socket) {
-    socket.on("connect", () => {
-      init()
-      console.log("connected to server");
-    });
-    socket.on("new_user", data => {
-      console.log("new_user", data)
-    });
-    socket.on("UserDataError", error => alert(error))
-  }
+let socket = io()
+window.addEventListener("message", messageHandler, false);
+if (!window.ALLOWED_DOMAINS) {
+  window.ALLOWED_DOMAINS = ["https://localhost:8080"]
 }
 
-window.login = (email, token) => {
-  if (email.length) {
-    const {
-      submitEmail
-    } = window;
-    if (!submitEmail || typeof submitEmail == "undefined") {
-      alert(`Unable to login in ${email} automatically. Please login manually.`)
-      return;
-    }
-    window.APP.store.update({
-      credentials: {
-        email
-      }
-    });
-    submitEmail(email)
-  }
-}
+function messageHandler(event) {
 
-window.initSSO = (googleElement) => gapi.load('auth2', () => {
-  try {
-    socket = io(window.SSOSocketURL);
-  } catch (error) {
-    console.error(error)
-  }
-  console.log("Auth2 context loaded")
-  let googleClientId = document.querySelector('meta[name="google-signin-client_id"]').content
-  if (googleElement) {
-    googleClientId = googleElement.content
-    console.log(`googleClientId: ${googleClientId}`)
-  }
-  const auth2 = gapi.auth2.init({
-    client_id: googleClientId,
-    scope: 'profile'
-  });
-  const {
-    localStorage
-  } = window;
-  // load ___hubs_store
-  let hubsData
-  try {
-    hubsData = JSON.parse(localStorage.getItem("___hubs_store"))
-  } catch (error) {
-    console.log(error)
-    alert(error.message)
-  }
+  alert(JSON.stringify(event))
 
-  // Listen for sign-in state changes.
-  auth2.isSignedIn.listen(value => {
-    console.log(`Login: ${value}`)
-  });
-
-  // Listen for changes to current user.
-  auth2.currentUser.listen(userChanged => {
-    const profile = auth2.currentUser.get().getBasicProfile();
-    console.log('ID: ' + profile.getId());
-    const email = profile.getEmail()
-    console.log('Email: ' + email);
-    let token;
-    if (!window.hasLoggedIn) {
-      // ensure we only login once
-      window.hasLoggedIn = true
-      window.login(email, token)
-      socket.emit("sso_login_event", {
-        userChanged,
-        email,
-        hubsData
+  if (!window.ALLOWED_DOMAINS || !window.ALLOWED_DOMAINS.includes(event.origin)) {
+    if (socket) {
+      socket.send("ERROR", {
+        type: "invalid_origin",
+        event,
       });
     }
-  });
-  // Sign in the user if they are currently signed in.
-  if (auth2.isSignedIn.get() == false) {
-    auth2.signIn();
+    return
   }
-});
+
+  const {
+    action,
+    key,
+    value
+  } = event.data
+
+  if (action === "save") {
+    window.localStorage.setItem(key, JSON.stringify(value))
+    if (socket) {
+      try {
+        socket.emit("save", value)
+      } catch (e) {
+        alert(e)
+      }
+    }
+  } else if (action === "get") {
+    event.source.postMessage({
+      action: 'returnData',
+      key,
+      message: JSON.parse(window.localStorage.getItem(key))
+    }, 'https://localhost:3001');
+  }
+}
+
+window.onload = () => {
+  if (socket) {
+    socket.on("connection", () => {
+      console.log("connected to server");
+    });
+    const credentials = window.localStorage.getItem("credentials");
+    if (credentials) {
+      socket.emit("save", credentials);
+    }
+    socket.on("ERROR", error => alert(error));
+  }
+}

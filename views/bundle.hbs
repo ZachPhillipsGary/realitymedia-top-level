@@ -59,7 +59,7 @@ window.addEventListener('load', (event) => {
                 console.log("added", msg)
                 return
             }
-            window.sso_iframe.contentWindow.postMessage(msg)
+            window.sso_iframe.contentWindow.postMessage(msg, "*")
             debugger;
         } catch (e) {
             alert(e.message);

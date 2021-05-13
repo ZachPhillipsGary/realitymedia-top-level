@@ -127,7 +127,7 @@ if (
   // logic for handling white space issues when running locally with self-signed cert
   const privateKey = loadFile(env.PRIVATE_KEY_PATH, privKeyFileName)
   const certificate = loadFile(env.CERT_PATH, certFileName)
-  const ca = loadFile(env.CERT, chainFileName)
+  const ca = loadFile(env.CHAIN_PATH, chainFileName)
 
   const credentials = {
     key: privateKey,
